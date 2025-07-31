@@ -1,12 +1,92 @@
-import { useState } from 'react'
-import { TOKENS } from './config/near'
-import { useWalletSelector } from './hooks/useWalletSelector'
-import '@near-wallet-selector/modal-ui/styles.css'
+import { useState, useEffect } from 'react'
+import { TOKENS, CONTRACT_CONFIG } from './config/near'
 import './App.css'
 
+// Simple NEAR wallet connection without complex imports
 function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'orders' | 'resolver'>('create');
-  const { accountId, showModal, signOut, callChangeMethod, callViewMethod } = useWalletSelector();
+  const [wallet, setWallet] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [accountId, setAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const initWallet = async () => {
+      try {
+        const { connect, keyStores, WalletConnection } = await import('near-api-js');
+        
+        const keyStore = new keyStores.BrowserLocalStorageKeyStore();
+        const config = {
+          networkId: CONTRACT_CONFIG.networkId,
+          keyStore,
+          nodeUrl: CONTRACT_CONFIG.nodeUrl,
+          walletUrl: CONTRACT_CONFIG.walletUrl,
+          helperUrl: CONTRACT_CONFIG.helperUrl,
+          headers: {}
+        };
+
+        const near = await connect(config);
+        const walletConnection = new WalletConnection(near, 'near-fusion-app');
+        
+        setWallet(walletConnection);
+        if (walletConnection.isSignedIn()) {
+          setAccountId(walletConnection.getAccountId());
+        }
+      } catch (error) {
+        console.error('Failed to initialize wallet:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initWallet();
+  }, []);
+
+  const connectWallet = () => {
+    if (wallet && !wallet.isSignedIn()) {
+      wallet.requestSignIn({
+        contractId: CONTRACT_CONFIG.contracts.fusionOrder,
+        successUrl: window.location.href,
+        failureUrl: window.location.href
+      });
+    }
+  };
+
+  const disconnectWallet = () => {
+    if (wallet && wallet.isSignedIn()) {
+      wallet.signOut();
+      window.location.reload();
+    }
+  };
+
+  const callViewMethod = async (contractId: string, methodName: string, args: any = {}) => {
+    if (!wallet) throw new Error('Wallet not initialized');
+    
+    const account = wallet.account();
+    return account.viewFunction({
+      contractId,
+      methodName,
+      args
+    });
+  };
+
+  const callChangeMethod = async (
+    contractId: string,
+    methodName: string,
+    args: any = {},
+    gas: string = '30000000000000',
+    deposit: string = '0'
+  ) => {
+    if (!wallet || !wallet.isSignedIn()) throw new Error('Wallet not connected');
+    
+    const account = wallet.account();
+    return account.functionCall({
+      contractId,
+      methodName,
+      args,
+      gas,
+      attachedDeposit: deposit
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -18,13 +98,15 @@ function App() {
               <p className="text-sm text-gray-600">1inch Cross-Chain Swaps on NEAR</p>
             </div>
             <div>
-              {accountId ? (
+              {loading ? (
+                <span className="text-gray-500">Loading...</span>
+              ) : accountId ? (
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-gray-700">
                     Connected: <span className="font-medium">{accountId}</span>
                   </span>
                   <button
-                    onClick={signOut}
+                    onClick={disconnectWallet}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
                   >
                     Disconnect
@@ -32,7 +114,7 @@ function App() {
                 </div>
               ) : (
                 <button
-                  onClick={showModal}
+                  onClick={connectWallet}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
                   Connect Wallet
@@ -143,16 +225,20 @@ function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
         ],
       } : null;
 
-      // This will call the contract when deployed
-      console.log('Would create order:', { order, auction });
-      alert('Order creation will work once contracts are deployed to testnet');
+      console.log('Creating order:', { order, auction });
       
-      // Example of how to call the contract:
+      // Example of how to call the contract when deployed:
       // await callChangeMethod(
       //   CONTRACT_CONFIG.contracts.fusionOrder,
       //   'create_order',
       //   { order, auction }
       // );
+      
+      alert('Order will be created once contracts are deployed!\n\nOrder details logged to console.');
+      
+      // Reset form
+      setMakingAmount('');
+      setTakingAmount('');
     } catch (error) {
       console.error('Error creating order:', error);
       alert('Failed to create order');
@@ -251,20 +337,13 @@ function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
 
 // Order List component
 function OrderList({ accountId, callViewMethod }: { accountId: string; callViewMethod: any }) {
-  // In a real implementation, you would fetch orders from the contract
-  // Example:
-  // useEffect(() => {
-  //   callViewMethod(CONTRACT_CONFIG.contracts.fusionOrder, 'get_orders_by_maker', { maker: accountId })
-  //     .then(setOrders);
-  // }, [accountId]);
-
   const mockOrders = [
     {
       id: '1',
       makerAsset: TOKENS[0],
       takerAsset: TOKENS[1],
-      makingAmount: '1000000000000000000000000',
-      takingAmount: '1000000',
+      makingAmount: '1000000000000000000000000', // 1 wNEAR
+      takingAmount: '1000000', // 1 USDC
       status: 'active',
       filledPercent: 0
     },
@@ -272,8 +351,8 @@ function OrderList({ accountId, callViewMethod }: { accountId: string; callViewM
       id: '2',
       makerAsset: TOKENS[1],
       takerAsset: TOKENS[0],
-      makingAmount: '5000000',
-      takingAmount: '5000000000000000000000000',
+      makingAmount: '5000000', // 5 USDC
+      takingAmount: '5000000000000000000000000', // 5 wNEAR
       status: 'active',
       filledPercent: 30
     }
@@ -281,7 +360,11 @@ function OrderList({ accountId, callViewMethod }: { accountId: string; callViewM
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600 mb-4">Orders will appear here once contracts are deployed</p>
+      <p className="text-sm text-gray-600 mb-4">
+        Connected as: {accountId}
+        <br />
+        <span className="text-xs">Orders will load from contract once deployed</span>
+      </p>
       {mockOrders.map(order => (
         <div key={order.id} className="border rounded-lg p-4">
           <div className="flex justify-between items-start mb-2">

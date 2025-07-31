@@ -11,12 +11,11 @@
   },
   "dependencies": {
     "@near-wallet-selector/core": "^9.2.0",
-    "@near-wallet-selector/meteor-wallet": "^9.2.0",
     "@near-wallet-selector/modal-ui": "^9.2.0",
     "@near-wallet-selector/my-near-wallet": "^9.2.0",
     "@tanstack/react-query": "^5.83.0",
     "buffer": "^6.0.3",
-    "near-api-js": "^6.2.4",
+    "near-api-js": "^5.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

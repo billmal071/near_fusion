@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { setupWalletSelector, WalletSelector, AccountState } from '@near-wallet-selector/core';
-import { setupModal, WalletSelectorModal } from '@near-wallet-selector/modal-ui';
+import { setupWalletSelector } from '@near-wallet-selector/core';
+import type { WalletSelector, AccountState } from '@near-wallet-selector/core';
+import { setupModal } from '@near-wallet-selector/modal-ui';
+import type { WalletSelectorModal } from '@near-wallet-selector/modal-ui';
 import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
-import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet';
 import { CONTRACT_CONFIG } from '../config/near';
 import type { Account } from 'near-api-js';
+import '@near-wallet-selector/modal-ui/styles.css';
 
 export const useWalletSelector = () => {
   const [selector, setSelector] = useState<WalletSelector | null>(null);

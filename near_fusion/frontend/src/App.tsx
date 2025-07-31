@@ -1,24 +1,12 @@
 import { useState } from 'react'
 import { TOKENS } from './config/near'
+import { useWalletSelector } from './hooks/useWalletSelector'
+import '@near-wallet-selector/modal-ui/styles.css'
 import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'orders' | 'resolver'>('create');
-  const [isConnected, setIsConnected] = useState(false);
-  const [accountId, setAccountId] = useState<string>('');
-
-  // Mock wallet connection for now
-  const connectWallet = () => {
-    // In a real implementation, this would use @near-wallet-selector
-    const mockAccount = `user${Math.floor(Math.random() * 1000)}.testnet`;
-    setAccountId(mockAccount);
-    setIsConnected(true);
-  };
-
-  const disconnectWallet = () => {
-    setAccountId('');
-    setIsConnected(false);
-  };
+  const { accountId, showModal, signOut, callChangeMethod, callViewMethod } = useWalletSelector();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -30,13 +18,13 @@ function App() {
               <p className="text-sm text-gray-600">1inch Cross-Chain Swaps on NEAR</p>
             </div>
             <div>
-              {isConnected ? (
+              {accountId ? (
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-gray-700">
                     Connected: <span className="font-medium">{accountId}</span>
                   </span>
                   <button
-                    onClick={disconnectWallet}
+                    onClick={signOut}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
                   >
                     Disconnect
@@ -44,10 +32,10 @@ function App() {
                 </div>
               ) : (
                 <button
-                  onClick={connectWallet}
+                  onClick={showModal}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                 >
-                  Connect Wallet (Mock)
+                  Connect Wallet
                 </button>
               )}
             </div>
@@ -95,8 +83,8 @@ function App() {
           {activeTab === 'create' && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">Create Order</h2>
-              {isConnected ? (
-                <CreateOrderForm />
+              {accountId ? (
+                <CreateOrderForm callChangeMethod={callChangeMethod} />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to create orders</p>
               )}
@@ -105,8 +93,8 @@ function App() {
           {activeTab === 'orders' && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">My Orders</h2>
-              {isConnected ? (
-                <OrderList accountId={accountId} />
+              {accountId ? (
+                <OrderList accountId={accountId} callViewMethod={callViewMethod} />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to view orders</p>
               )}
@@ -125,23 +113,52 @@ function App() {
 }
 
 // Create Order Form component
-function CreateOrderForm() {
+function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
   const [makerAsset, setMakerAsset] = useState(TOKENS[0].id);
   const [takerAsset, setTakerAsset] = useState(TOKENS[1].id);
   const [makingAmount, setMakingAmount] = useState('');
   const [takingAmount, setTakingAmount] = useState('');
   const [enableAuction, setEnableAuction] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Creating order:', { 
-      makerAsset, 
-      takerAsset, 
-      makingAmount, 
-      takingAmount,
-      enableAuction 
-    });
-    alert('Order creation will be implemented with deployed contracts');
+    setLoading(true);
+    
+    try {
+      const order = {
+        maker_asset: makerAsset,
+        taker_asset: takerAsset,
+        making_amount: makingAmount,
+        taking_amount: takingAmount,
+      };
+
+      const auction = enableAuction ? {
+        start_time: Math.floor(Date.now() / 1000),
+        duration: 3600,
+        initial_rate_bump: 200,
+        points: [
+          { delay: 900, coefficient: 750000 },
+          { delay: 1800, coefficient: 500000 },
+        ],
+      } : null;
+
+      // This will call the contract when deployed
+      console.log('Would create order:', { order, auction });
+      alert('Order creation will work once contracts are deployed to testnet');
+      
+      // Example of how to call the contract:
+      // await callChangeMethod(
+      //   CONTRACT_CONFIG.contracts.fusionOrder,
+      //   'create_order',
+      //   { order, auction }
+      // );
+    } catch (error) {
+      console.error('Error creating order:', error);
+      alert('Failed to create order');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const makerToken = TOKENS.find(t => t.id === makerAsset);
@@ -169,11 +186,12 @@ function CreateOrderForm() {
           value={makingAmount}
           onChange={(e) => setMakingAmount(e.target.value)}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-          placeholder="Amount"
+          placeholder="Amount (in smallest unit)"
+          required
         />
         {makerToken && makingAmount && (
           <p className="text-sm text-gray-600 mt-1">
-            {(parseFloat(makingAmount) / Math.pow(10, makerToken.decimals)).toFixed(6)} {makerToken.symbol}
+            ≈ {(parseFloat(makingAmount) / Math.pow(10, makerToken.decimals)).toFixed(6)} {makerToken.symbol}
           </p>
         )}
       </div>
@@ -198,11 +216,12 @@ function CreateOrderForm() {
           value={takingAmount}
           onChange={(e) => setTakingAmount(e.target.value)}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-          placeholder="Amount"
+          placeholder="Amount (in smallest unit)"
+          required
         />
         {takerToken && takingAmount && (
           <p className="text-sm text-gray-600 mt-1">
-            {(parseFloat(takingAmount) / Math.pow(10, takerToken.decimals)).toFixed(6)} {takerToken.symbol}
+            ≈ {(parseFloat(takingAmount) / Math.pow(10, takerToken.decimals)).toFixed(6)} {takerToken.symbol}
           </p>
         )}
       </div>
@@ -221,16 +240,24 @@ function CreateOrderForm() {
 
       <button
         type="submit"
-        className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
+        disabled={loading}
+        className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
       >
-        Create Order
+        {loading ? 'Creating...' : 'Create Order'}
       </button>
     </form>
   );
 }
 
 // Order List component
-function OrderList({ accountId }: { accountId: string }) {
+function OrderList({ accountId, callViewMethod }: { accountId: string; callViewMethod: any }) {
+  // In a real implementation, you would fetch orders from the contract
+  // Example:
+  // useEffect(() => {
+  //   callViewMethod(CONTRACT_CONFIG.contracts.fusionOrder, 'get_orders_by_maker', { maker: accountId })
+  //     .then(setOrders);
+  // }, [accountId]);
+
   const mockOrders = [
     {
       id: '1',
@@ -254,7 +281,7 @@ function OrderList({ accountId }: { accountId: string }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600 mb-4">Showing mock orders for demonstration</p>
+      <p className="text-sm text-gray-600 mb-4">Orders will appear here once contracts are deployed</p>
       {mockOrders.map(order => (
         <div key={order.id} className="border rounded-lg p-4">
           <div className="flex justify-between items-start mb-2">

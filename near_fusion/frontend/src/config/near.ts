@@ -48,3 +48,38 @@ export const TIMELOCK_STAGES = {
   dstPublicWithdrawal: 3600, // 1 hour
   dstCancellation: 7200, // 2 hours
 };
+
+// Mock contract calls for demonstration
+export const mockContractCalls = {
+  create_order: async (order: any, auction: any) => {
+    console.log('Mock: Creating order', { order, auction });
+    return {
+      order_hash: `0x${Math.random().toString(16).slice(2, 10)}`,
+      status: 'created'
+    };
+  },
+  
+  get_user_orders: async (accountId: string) => {
+    console.log('Mock: Getting orders for', accountId);
+    return [
+      {
+        order_hash: '0xabcd1234',
+        maker_asset: CONTRACT_CONFIG.contracts.wNEAR,
+        taker_asset: CONTRACT_CONFIG.contracts.USDC,
+        making_amount: '1000000000000000000000000',
+        taking_amount: '1000000',
+        status: 'active',
+        filled_amount: '0'
+      },
+      {
+        order_hash: '0xefgh5678',
+        maker_asset: CONTRACT_CONFIG.contracts.USDC,
+        taker_asset: CONTRACT_CONFIG.contracts.wNEAR,
+        making_amount: '5000000',
+        taking_amount: '5000000000000000000000000',
+        status: 'active',
+        filled_amount: '1500000'
+      }
+    ];
+  }
+};

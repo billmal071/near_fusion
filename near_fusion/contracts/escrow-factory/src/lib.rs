@@ -1,7 +1,11 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
+use near_sdk::json_types::U128;
 use near_sdk::{env, near_bindgen, AccountId, PanicOnDefault, Promise, Balance};
 use escrow::{Immutables, Stage, DataKey};
+
+#[cfg(test)]
+mod test;
 
 const GAS_FOR_FT_TRANSFER: u64 = 10_000_000_000_000;
 const GAS_FOR_DEPLOY: u64 = 50_000_000_000_000;
@@ -118,7 +122,7 @@ impl EscrowFactory {
         self.deployments.get(&salt)
     }
 
-    fn _get_escrow_account_id(&self, salt: &[u8; 32], prefix: &str) -> AccountId {
+    pub fn _get_escrow_account_id(&self, salt: &[u8; 32], prefix: &str) -> AccountId {
         let hex_salt = hex::encode(salt);
         format!("{}-{}.{}", prefix, &hex_salt[..8], env::current_account_id())
             .parse()

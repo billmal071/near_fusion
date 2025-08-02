@@ -7,11 +7,12 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-near-sdk = { workspace = true }
+borsh = { workspace = true }
+near-sdk = { workspace = true, features = ["legacy"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha3 = { workspace = true }
 escrow = { path = "../../shared/escrow" }
 
 [dev-dependencies]
-near-sdk = { workspace = true }
+near-sdk = { workspace = true, features = ["legacy"] }

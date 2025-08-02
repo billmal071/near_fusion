@@ -1,92 +1,12 @@
 import { useState, useEffect } from 'react'
-import { TOKENS, CONTRACT_CONFIG } from './config/near'
+import { TOKENS, CONTRACT_CONFIG, mockContractCalls } from './config/near'
+import { useWalletSelector } from './hooks/useWalletSelector'
 import './App.css'
+import '@near-wallet-selector/modal-ui/styles.css'
 
-// Simple NEAR wallet connection without complex imports
 function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'orders' | 'resolver'>('create');
-  const [wallet, setWallet] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [accountId, setAccountId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const initWallet = async () => {
-      try {
-        const { connect, keyStores, WalletConnection } = await import('near-api-js');
-        
-        const keyStore = new keyStores.BrowserLocalStorageKeyStore();
-        const config = {
-          networkId: CONTRACT_CONFIG.networkId,
-          keyStore,
-          nodeUrl: CONTRACT_CONFIG.nodeUrl,
-          walletUrl: CONTRACT_CONFIG.walletUrl,
-          helperUrl: CONTRACT_CONFIG.helperUrl,
-          headers: {}
-        };
-
-        const near = await connect(config);
-        const walletConnection = new WalletConnection(near, 'near-fusion-app');
-        
-        setWallet(walletConnection);
-        if (walletConnection.isSignedIn()) {
-          setAccountId(walletConnection.getAccountId());
-        }
-      } catch (error) {
-        console.error('Failed to initialize wallet:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initWallet();
-  }, []);
-
-  const connectWallet = () => {
-    if (wallet && !wallet.isSignedIn()) {
-      wallet.requestSignIn({
-        contractId: CONTRACT_CONFIG.contracts.fusionOrder,
-        successUrl: window.location.href,
-        failureUrl: window.location.href
-      });
-    }
-  };
-
-  const disconnectWallet = () => {
-    if (wallet && wallet.isSignedIn()) {
-      wallet.signOut();
-      window.location.reload();
-    }
-  };
-
-  const callViewMethod = async (contractId: string, methodName: string, args: any = {}) => {
-    if (!wallet) throw new Error('Wallet not initialized');
-    
-    const account = wallet.account();
-    return account.viewFunction({
-      contractId,
-      methodName,
-      args
-    });
-  };
-
-  const callChangeMethod = async (
-    contractId: string,
-    methodName: string,
-    args: any = {},
-    gas: string = '30000000000000',
-    deposit: string = '0'
-  ) => {
-    if (!wallet || !wallet.isSignedIn()) throw new Error('Wallet not connected');
-    
-    const account = wallet.account();
-    return account.functionCall({
-      contractId,
-      methodName,
-      args,
-      gas,
-      attachedDeposit: deposit
-    });
-  };
+  const { accountId, loading, connectWallet, disconnectWallet, viewMethod, callMethod } = useWalletSelector();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -166,7 +86,7 @@ function App() {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">Create Order</h2>
               {accountId ? (
-                <CreateOrderForm callChangeMethod={callChangeMethod} />
+                <CreateOrderForm callChangeMethod={callMethod} />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to create orders</p>
               )}
@@ -176,7 +96,7 @@ function App() {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">My Orders</h2>
               {accountId ? (
-                <OrderList accountId={accountId} callViewMethod={callViewMethod} />
+                <OrderList accountId={accountId} callViewMethod={viewMethod} />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to view orders</p>
               )}
@@ -227,14 +147,11 @@ function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
 
       console.log('Creating order:', { order, auction });
       
-      // Example of how to call the contract when deployed:
-      // await callChangeMethod(
-      //   CONTRACT_CONFIG.contracts.fusionOrder,
-      //   'create_order',
-      //   { order, auction }
-      // );
+      // Use mock contract call for demonstration
+      const result = await mockContractCalls.create_order(order, auction);
+      console.log('Order created:', result);
       
-      alert('Order will be created once contracts are deployed!\n\nOrder details logged to console.');
+      alert(`Order created successfully!\n\nOrder Hash: ${result.order_hash}\n\nThis is a mock transaction for demonstration.`);
       
       // Reset form
       setMakingAmount('');
@@ -337,26 +254,32 @@ function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
 
 // Order List component
 function OrderList({ accountId, callViewMethod }: { accountId: string; callViewMethod: any }) {
-  const mockOrders = [
-    {
-      id: '1',
-      makerAsset: TOKENS[0],
-      takerAsset: TOKENS[1],
-      makingAmount: '1000000000000000000000000', // 1 wNEAR
-      takingAmount: '1000000', // 1 USDC
-      status: 'active',
-      filledPercent: 0
-    },
-    {
-      id: '2',
-      makerAsset: TOKENS[1],
-      takerAsset: TOKENS[0],
-      makingAmount: '5000000', // 5 USDC
-      takingAmount: '5000000000000000000000000', // 5 wNEAR
-      status: 'active',
-      filledPercent: 30
-    }
-  ];
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const userOrders = await mockContractCalls.get_user_orders(accountId);
+        const formattedOrders = userOrders.map((order: any) => ({
+          id: order.order_hash,
+          makerAsset: TOKENS.find(t => t.id === order.maker_asset) || TOKENS[0],
+          takerAsset: TOKENS.find(t => t.id === order.taker_asset) || TOKENS[1],
+          makingAmount: order.making_amount,
+          takingAmount: order.taking_amount,
+          status: order.status,
+          filledPercent: order.filled_amount ? Math.floor((parseInt(order.filled_amount) / parseInt(order.taking_amount)) * 100) : 0
+        }));
+        setOrders(formattedOrders);
+      } catch (error) {
+        console.error('Failed to load orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, [accountId]);
 
   return (
     <div className="space-y-4">
@@ -365,7 +288,12 @@ function OrderList({ accountId, callViewMethod }: { accountId: string; callViewM
         <br />
         <span className="text-xs">Orders will load from contract once deployed</span>
       </p>
-      {mockOrders.map(order => (
+      {loading ? (
+        <p className="text-gray-500">Loading orders...</p>
+      ) : orders.length === 0 ? (
+        <p className="text-gray-500">No orders yet. Create your first order!</p>
+      ) : (
+        orders.map(order => (
         <div key={order.id} className="border rounded-lg p-4">
           <div className="flex justify-between items-start mb-2">
             <div>
@@ -397,7 +325,8 @@ function OrderList({ accountId, callViewMethod }: { accountId: string; callViewM
             Cancel Order
           </button>
         </div>
-      ))}
+      ))
+      )}
     </div>
   );
 }

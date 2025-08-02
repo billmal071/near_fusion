@@ -1,115 +1,101 @@
 import { useEffect, useState } from 'react';
-import { setupWalletSelector } from '@near-wallet-selector/core';
-import type { WalletSelector, AccountState } from '@near-wallet-selector/core';
-import { setupModal } from '@near-wallet-selector/modal-ui';
-import type { WalletSelectorModal } from '@near-wallet-selector/modal-ui';
-import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
 import { CONTRACT_CONFIG } from '../config/near';
-import type { Account } from 'near-api-js';
-import '@near-wallet-selector/modal-ui/styles.css';
+
+// Type imports
+import type { WalletSelector } from '@near-wallet-selector/core';
+import type { WalletSelectorModal } from '@near-wallet-selector/modal-ui';
 
 export const useWalletSelector = () => {
   const [selector, setSelector] = useState<WalletSelector | null>(null);
   const [modal, setModal] = useState<WalletSelectorModal | null>(null);
-  const [accounts, setAccounts] = useState<AccountState[]>([]);
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [account, setAccount] = useState<Account | null>(null);
-
-  const init = async () => {
-    const _selector = await setupWalletSelector({
-      network: CONTRACT_CONFIG.networkId,
-      modules: [
-        setupMyNearWallet(),
-        setupMeteorWallet(),
-      ],
-    });
-
-    const _modal = setupModal(_selector, {
-      contractId: CONTRACT_CONFIG.contracts.fusionOrder,
-    });
-
-    const state = _selector.store.getState();
-    setAccounts(state.accounts);
-
-    setSelector(_selector);
-    setModal(_modal);
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    init();
-  }, []);
+    const initSelector = async () => {
+      try {
+        // Dynamic imports to avoid ESM issues
+        const { setupWalletSelector } = await import('@near-wallet-selector/core');
+        const { setupModal } = await import('@near-wallet-selector/modal-ui');
+        const { setupMyNearWallet } = await import('@near-wallet-selector/my-near-wallet');
+        const { setupMeteorWallet } = await import('@near-wallet-selector/meteor-wallet');
 
-  useEffect(() => {
-    if (!selector) return;
+        const walletSelector = await setupWalletSelector({
+          network: CONTRACT_CONFIG.networkId,
+          modules: [
+            setupMyNearWallet(),
+            setupMeteorWallet(),
+          ],
+        });
 
-    const subscription = selector.store.observable
-      .subscribe((state) => {
-        setAccounts(state.accounts);
-        setAccountId(state.accounts.find((account) => account.active)?.accountId || null);
-      });
+        const accounts = walletSelector.store.getState().accounts;
+        const activeAccount = accounts.find((account: any) => account.active)?.accountId || null;
+        
+        setAccountId(activeAccount);
+        setSelector(walletSelector);
 
-    return () => subscription.unsubscribe();
-  }, [selector]);
+        // Subscribe to account changes
+        walletSelector.store.observable.subscribe((state: any) => {
+          const activeAccount = state.accounts.find((account: any) => account.active)?.accountId || null;
+          setAccountId(activeAccount);
+        });
 
-  useEffect(() => {
-    const getAccount = async () => {
-      if (!selector || !accountId) {
-        setAccount(null);
-        return;
-      }
-
-      const wallet = await selector.wallet();
-      const walletAccounts = await wallet.getAccounts();
-      const activeAccount = walletAccounts.find(acc => acc.accountId === accountId);
-      
-      if (activeAccount) {
-        // For view methods, we can use the selector directly
-        // For change methods, we'll use wallet.signAndSendTransaction
-        setAccount(activeAccount as any);
+        // Setup modal
+        const walletModal = setupModal(walletSelector, {
+          contractId: CONTRACT_CONFIG.contracts.fusionOrder,
+        });
+        setModal(walletModal);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to initialize wallet selector:', error);
+        setLoading(false);
       }
     };
 
-    getAccount();
-  }, [selector, accountId]);
+    initSelector();
+  }, []);
 
-  const showModal = () => {
+  const connectWallet = () => {
     modal?.show();
   };
 
-  const signOut = async () => {
-    const wallet = await selector?.wallet();
-    wallet?.signOut();
+  const disconnectWallet = async () => {
+    if (!selector) return;
+    
+    const wallet = await selector.wallet();
+    await wallet.signOut();
+    setAccountId(null);
   };
 
-  const callViewMethod = async (contractId: string, methodName: string, args: any = {}) => {
-    if (!selector) throw new Error('Wallet not initialized');
+  const viewMethod = async (contractId: string, methodName: string, args = {}) => {
+    if (!selector) throw new Error('Wallet selector not initialized');
     
-    const { network } = selector.options;
-    const provider = new (await import('near-api-js')).providers.JsonRpcProvider({ url: network.nodeUrl });
-
-    const res = await provider.query({
+    const { network } = selector.store.getState();
+    const provider = await selector.provider();
+    
+    return provider.query({
       request_type: 'call_function',
+      finality: 'optimistic',
       account_id: contractId,
       method_name: methodName,
-      args_base64: Buffer.from(JSON.stringify(args)).toString('base64'),
-      finality: 'optimistic',
+      args_base64: Buffer.from(JSON.stringify(args)).toString('base64')
     });
-
-    // @ts-ignore
-    return JSON.parse(Buffer.from(res.result).toString());
   };
 
-  const callChangeMethod = async (
+  const callMethod = async (
     contractId: string,
     methodName: string,
-    args: any = {},
-    gas: string = '30000000000000',
-    deposit: string = '0'
+    args = {},
+    gas = '30000000000000',
+    deposit = '0'
   ) => {
     if (!selector || !accountId) throw new Error('Wallet not connected');
-
+    
     const wallet = await selector.wallet();
+    
     return wallet.signAndSendTransaction({
+      signerId: accountId,
       receiverId: contractId,
       actions: [
         {
@@ -118,22 +104,21 @@ export const useWalletSelector = () => {
             methodName,
             args,
             gas,
-            deposit,
-          },
-        },
-      ],
+            deposit
+          }
+        }
+      ]
     });
   };
 
   return {
     selector,
     modal,
-    accounts,
     accountId,
-    account,
-    showModal,
-    signOut,
-    callViewMethod,
-    callChangeMethod,
+    loading,
+    connectWallet,
+    disconnectWallet,
+    viewMethod,
+    callMethod
   };
 };

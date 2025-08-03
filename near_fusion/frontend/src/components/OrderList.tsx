@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNear } from '../contexts/NearContext';
-import { OrderState } from '../types/contracts';
+import type { OrderState } from '../types/contracts';
 import { TOKENS } from '../config/near';
 
 const OrderList = () => {
   const { fusionOrderContract, account, isSignedIn } = useNear();
-  const [orders, setOrders] = useState<{ hash: string; state: OrderState }[]>([]);
+  const [orders] = useState<{ hash: string; state: OrderState }[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadOrders = async () => {

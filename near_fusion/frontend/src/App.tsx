@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { TOKENS, CONTRACT_CONFIG, mockContractCalls } from './config/near'
+import { TOKENS, mockContractCalls } from './config/near'
 import { useWalletSelector } from './hooks/useWalletSelector'
 import './App.css'
 import '@near-wallet-selector/modal-ui/styles.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'orders' | 'resolver'>('create');
-  const { accountId, loading, connectWallet, disconnectWallet, viewMethod, callMethod } = useWalletSelector();
+  const { accountId, loading, connectWallet, disconnectWallet } = useWalletSelector();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -86,7 +86,7 @@ function App() {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">Create Order</h2>
               {accountId ? (
-                <CreateOrderForm callChangeMethod={callMethod} />
+                <CreateOrderForm />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to create orders</p>
               )}
@@ -96,7 +96,7 @@ function App() {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-bold mb-4">My Orders</h2>
               {accountId ? (
-                <OrderList accountId={accountId} callViewMethod={viewMethod} />
+                <OrderList accountId={accountId} />
               ) : (
                 <p className="text-gray-600">Please connect your wallet to view orders</p>
               )}
@@ -115,7 +115,7 @@ function App() {
 }
 
 // Create Order Form component
-function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
+function CreateOrderForm() {
   const [makerAsset, setMakerAsset] = useState(TOKENS[0].id);
   const [takerAsset, setTakerAsset] = useState(TOKENS[1].id);
   const [makingAmount, setMakingAmount] = useState('');
@@ -253,7 +253,7 @@ function CreateOrderForm({ callChangeMethod }: { callChangeMethod: any }) {
 }
 
 // Order List component
-function OrderList({ accountId, callViewMethod }: { accountId: string; callViewMethod: any }) {
+function OrderList({ accountId }: { accountId: string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   

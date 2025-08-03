@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNear } from '../contexts/NearContext';
 import { TOKENS } from '../config/near';
-import { FusionOrder, AuctionDetails } from '../types/contracts';
+import type { FusionOrder, AuctionDetails } from '../types/contracts';
 
 const CreateOrder = () => {
   const { fusionOrderContract, isSignedIn } = useNear();
@@ -33,7 +33,7 @@ const CreateOrder = () => {
       
       const order: FusionOrder = {
         order_hash: Array(32).fill(0).join(''), // Will be computed by contract
-        maker: fusionOrderContract.account.accountId,
+        maker: fusionOrderContract.account?.accountId || '',
         resolver: undefined,
         maker_asset: makerAsset,
         taker_asset: takerAsset,

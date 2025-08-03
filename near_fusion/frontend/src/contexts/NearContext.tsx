@@ -54,19 +54,22 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Initialize contracts
         const fusionOrder = new Contract(account, CONTRACT_CONFIG.contracts.fusionOrder, {
           viewMethods: ['get_order', 'get_remaining_amounts'],
-          changeMethods: ['create_order', 'fill_order', 'cancel_order', 'add_resolver', 'remove_resolver']
+          changeMethods: ['create_order', 'fill_order', 'cancel_order', 'add_resolver', 'remove_resolver'],
+          useLocalViewExecution: false
         });
         setFusionOrderContract(fusionOrder);
 
         const fusionResolver = new Contract(account, CONTRACT_CONFIG.contracts.fusionResolver, {
           viewMethods: [],
-          changeMethods: ['initiate_cross_chain_swap', 'deploy_src_escrow', 'deploy_dst_escrow', 'execute_cross_chain_fill', 'add_operator', 'remove_operator']
+          changeMethods: ['initiate_cross_chain_swap', 'deploy_src_escrow', 'deploy_dst_escrow', 'execute_cross_chain_fill', 'add_operator', 'remove_operator'],
+          useLocalViewExecution: false
         });
         setFusionResolverContract(fusionResolver);
 
         const escrowFactory = new Contract(account, CONTRACT_CONFIG.contracts.escrowFactory, {
           viewMethods: ['get_deployment'],
-          changeMethods: ['create_src_escrow', 'create_dst_escrow']
+          changeMethods: ['create_src_escrow', 'create_dst_escrow'],
+          useLocalViewExecution: false
         });
         setEscrowFactoryContract(escrowFactory);
       }
@@ -83,7 +86,7 @@ export const NearProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = () => {
     wallet?.requestSignIn({
       contractId: CONTRACT_CONFIG.contracts.fusionOrder,
-      methodNames: []
+      keyType: 'ed25519' as any
     });
   };
 

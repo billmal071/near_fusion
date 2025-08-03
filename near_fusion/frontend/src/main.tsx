@@ -7,8 +7,10 @@ import './index.css'
 import CrossChainApp from './CrossChainApp.tsx'
 import { Web3Provider } from './providers/Web3Provider.tsx'
 
-// Polyfill for NEAR API JS
+// Polyfills for NEAR API JS
 window.Buffer = Buffer
+// @ts-ignore
+window.process = window.process || { env: {} }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

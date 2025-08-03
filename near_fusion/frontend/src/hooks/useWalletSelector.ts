@@ -21,7 +21,7 @@ export const useWalletSelector = () => {
         const { setupMeteorWallet } = await import('@near-wallet-selector/meteor-wallet');
 
         const walletSelector = await setupWalletSelector({
-          network: CONTRACT_CONFIG.networkId,
+          network: CONTRACT_CONFIG.networkId as any,
           modules: [
             setupMyNearWallet(),
             setupMeteorWallet(),
@@ -71,16 +71,30 @@ export const useWalletSelector = () => {
   const viewMethod = async (contractId: string, methodName: string, args = {}) => {
     if (!selector) throw new Error('Wallet selector not initialized');
     
-    const { network } = selector.store.getState();
-    const provider = await selector.provider();
+    const wallet = await selector.wallet();
+    const accounts = await wallet.getAccounts();
+    if (!accounts.length) throw new Error('No account available');
     
-    return provider.query({
-      request_type: 'call_function',
-      finality: 'optimistic',
-      account_id: contractId,
-      method_name: methodName,
-      args_base64: Buffer.from(JSON.stringify(args)).toString('base64')
+    // For view methods, we can use the RPC directly
+    const { nodeUrl } = CONTRACT_CONFIG;
+    const response = await fetch(nodeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'dontcare',
+        method: 'query',
+        params: {
+          request_type: 'call_function',
+          finality: 'optimistic',
+          account_id: contractId,
+          method_name: methodName,
+          args_base64: Buffer.from(JSON.stringify(args)).toString('base64')
+        }
+      })
     });
+    
+    return response.json();
   };
 
   const callMethod = async (

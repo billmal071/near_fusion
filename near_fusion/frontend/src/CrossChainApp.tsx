@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount as useEthAccount, useBalance } from 'wagmi'
+import { useAccount as useEthAccount } from 'wagmi'
 import { useWalletSelector } from './hooks/useWalletSelector'
-import { TOKENS, mockContractCalls } from './config/near'
+import { TOKENS } from './config/near'
 import './App.css'
 import '@near-wallet-selector/modal-ui/styles.css'
 
